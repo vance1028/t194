@@ -52,6 +52,30 @@ function sweepToCsv(result: SweepResult): string {
   return [`totalCandidates,${result.totalCandidates}`, header, ...rows].join('\n');
 }
 
+interface SimulationSummary {
+  hit: boolean;
+  hitTargetId?: string;
+  totalTime: number;
+  trajectoryPoints: number;
+  terminationReason: SimulationResult['terminationReason'];
+  firstCollision?: SimulationResult['firstCollision'];
+  finalPosition: SimulationResult['finalPosition'];
+  finalVelocity: SimulationResult['finalVelocity'];
+}
+
+function getSimulationSummary(result: SimulationResult): SimulationSummary {
+  return {
+    hit: result.hit,
+    hitTargetId: result.hitTargetId,
+    totalTime: result.totalTime,
+    trajectoryPoints: result.trajectory.length,
+    terminationReason: result.terminationReason,
+    firstCollision: result.firstCollision,
+    finalPosition: result.finalPosition,
+    finalVelocity: result.finalVelocity,
+  };
+}
+
 function writeOutput(outputPath: string | undefined, content: string): void {
   if (outputPath) {
     fs.writeFileSync(outputPath, content, 'utf-8');
@@ -61,31 +85,68 @@ function writeOutput(outputPath: string | undefined, content: string): void {
   }
 }
 
+function printHumanSummary(result: SimulationResult): string {
+  const lines: string[] = [];
+  lines.push('=== 物理模拟结果摘要 ===');
+  lines.push(`命中目标:     ${result.hit ? '是 ✓' : '否 ✗'}`);
+  if (result.hitTargetId) {
+    lines.push(`命中目标ID:   ${result.hitTargetId}`);
+  }
+  lines.push(`终止原因:     ${result.terminationReason}`);
+  lines.push(`总模拟时间:   ${result.totalTime.toFixed(4)} s`);
+  lines.push(`轨迹采样点:   ${result.trajectory.length}`);
+  lines.push(`最终位置:     (${result.finalPosition.x.toFixed(4)}, ${result.finalPosition.y.toFixed(4)})`);
+  const finalSpeed = Math.sqrt(
+    result.finalVelocity.x * result.finalVelocity.x +
+    result.finalVelocity.y * result.finalVelocity.y
+  );
+  lines.push(`最终速度:     (${result.finalVelocity.x.toFixed(4)}, ${result.finalVelocity.y.toFixed(4)})  大小: ${finalSpeed.toFixed(4)}`);
+
+  if (result.firstCollision) {
+    const fc = result.firstCollision;
+    lines.push('');
+    lines.push('--- 首次碰撞 ---');
+    lines.push(`碰撞对象:     ${fc.obstacleId} (${fc.obstacleType})`);
+    lines.push(`碰撞行为:     ${fc.action}`);
+    lines.push(`碰撞时刻:     ${fc.time.toFixed(4)} s`);
+    lines.push(`碰撞位置:     (${fc.position.x.toFixed(4)}, ${fc.position.y.toFixed(4)})`);
+    lines.push(`碰撞后速度:   (${fc.velocity.x.toFixed(4)}, ${fc.velocity.y.toFixed(4)})  剩余速度: ${fc.remainingSpeed.toFixed(4)}`);
+  }
+  lines.push('========================');
+  return lines.join('\n');
+}
+
 program
   .command('simulate')
   .description('运行单次物理模拟')
   .argument('<scene-file>', '场景配置 JSON 文件路径')
-  .option('-f, --format <format>', '输出格式: json 或 csv', 'json')
+  .option('-f, --format <format>', '输出格式: json / csv / human (默认 human，仅摘要)', 'human')
   .option('-o, --output <file>', '输出文件路径')
+  .option('--full', '输出完整结果（包含所有轨迹点），默认仅输出摘要')
+  .option('--summary-only', '仅输出简洁摘要，等价于默认的 human 格式')
   .action((sceneFile, options) => {
     try {
       const scene = parseSceneFromFile(sceneFile);
       const result = simulate(scene);
-      const format = options.format as 'json' | 'csv';
+      const format = options.format as 'json' | 'csv' | 'human';
+      const outputFull = Boolean(options.full);
+      const summaryOnly = Boolean(options.summaryOnly);
 
       let output: string;
-      if (format === 'csv') {
+
+      if (format === 'human') {
+        output = printHumanSummary(result);
+      } else if (format === 'csv') {
         output = trajectoryToCsv(result);
-        const summary = {
-          hit: result.hit,
-          hitTargetId: result.hitTargetId,
-          totalTime: result.totalTime,
-          terminationReason: result.terminationReason,
-          firstCollision: result.firstCollision,
-        };
+        const summary = getSimulationSummary(result);
         output = `# ${JSON.stringify(summary)}\n` + output;
       } else {
-        output = formatOutput(result, 'json');
+        if (outputFull && !summaryOnly) {
+          output = formatOutput(result, 'json');
+        } else {
+          const summary = getSimulationSummary(result);
+          output = formatOutput(summary, 'json');
+        }
       }
 
       writeOutput(options.output, output);

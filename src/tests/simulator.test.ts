@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import type { Scene } from '../types.js';
 import { simulate } from '../simulator.js';
-import { validateScene, parseScene } from '../scene.js';
+import { validateScene, parseScene, parseSceneFromFile, validateSceneFile } from '../scene.js';
 import { runSweep } from '../sweep.js';
 import { getSampleScenes } from '../samples.js';
 import { degToRad } from '../integrator.js';
@@ -656,4 +656,202 @@ describe('物理模拟器测试', () => {
       }
     });
   });
+
+  describe('11. UTF-8 BOM 兼容性验证', () => {
+    it('parseSceneFromFile 应兼容带 BOM 的 JSON 文件', () => {
+      const sceneData: Scene = {
+        launch: { position: { x: 0, y: 0 }, angleDegrees: 45, initialSpeed: 20 },
+        wind: { speed: 0, directionDegrees: 0 },
+        gravity: 9.81,
+        timeStep: 0.01,
+        maxSimulationTime: 10,
+        integrator: 'semi-implicit-euler',
+        obstacles: [{ id: 'target', type: 'circle', x: 40, y: 0, radius: 2 }],
+      };
+
+      const jsonStr = JSON.stringify(sceneData);
+      const bomJson = '\uFEFF' + jsonStr;
+
+      const testFile = path.join(tempDir, 'with-bom.json');
+      fs.writeFileSync(testFile, bomJson, 'utf-8');
+
+      const parsed = parseSceneFromFile(testFile);
+      assert.equal(parsed.launch.angleDegrees, 45);
+      assert.equal(parsed.launch.initialSpeed, 20);
+      assert.equal(parsed.obstacles.length, 1);
+
+      const noBomFile = path.join(tempDir, 'without-bom.json');
+      fs.writeFileSync(noBomFile, jsonStr, 'utf-8');
+
+      const parsedNoBom = parseSceneFromFile(noBomFile);
+      assert.equal(parsedNoBom.launch.angleDegrees, parsed.launch.angleDegrees);
+      assert.equal(parsedNoBom.launch.initialSpeed, parsed.launch.initialSpeed);
+      assert.deepEqual(parsedNoBom.obstacles, parsed.obstacles);
+    });
+
+    it('validateSceneFile 应兼容带 BOM 的 JSON 文件', () => {
+      const sceneData: Scene = {
+        launch: { position: { x: 0, y: 0 }, angleDegrees: 45, initialSpeed: 20 },
+        wind: { speed: 0, directionDegrees: 0 },
+        gravity: 9.81,
+        timeStep: 0.01,
+        maxSimulationTime: 10,
+        integrator: 'semi-implicit-euler',
+        obstacles: [{ id: 'target', type: 'circle', x: 40, y: 0, radius: 2 }],
+      };
+
+      const jsonStr = JSON.stringify(sceneData);
+      const bomJson = '\uFEFF' + jsonStr;
+
+      const testFile = path.join(tempDir, 'validate-bom.json');
+      fs.writeFileSync(testFile, bomJson, 'utf-8');
+
+      const result = validateSceneFile(testFile);
+      assert.equal(result.valid, true);
+      assert.equal(result.errors.length, 0);
+    });
+  });
+
+  describe('12. sweep-test 示例场景验证', () => {
+    it('sweep_test 场景在默认搜索范围内应能找到命中候选', () => {
+      const sweepScene = getSampleScenes().find(s => s.name === 'sweep_test');
+      assert.ok(sweepScene !== undefined, 'sweep_test 场景应存在');
+
+      const sweepParams = {
+        angleRange: { min: 0, max: 90, step: 5 },
+        speedRange: { min: 5, max: 50, step: 5 },
+        sortBy: 'time' as const,
+      };
+
+      const result = runSweep(sweepScene.scene, sweepParams);
+
+      assert.ok(
+        result.hits.length > 0,
+        `sweep_test 场景在默认搜索范围内应至少找到 1 个命中，实际找到 ${result.hits.length} 个，总候选: ${result.totalCandidates}`
+      );
+
+      for (const hit of result.hits.slice(0, 3)) {
+        const verifyResult = simulateWithOverrideScene(sweepScene.scene, hit.angleDegrees, hit.initialSpeed);
+        assert.equal(
+          verifyResult.hit,
+          true,
+          `sweep 找到的参数 (angle=${hit.angleDegrees}, speed=${hit.initialSpeed}) 重跑应命中`
+        );
+        assert.equal(
+          verifyResult.hitTargetId,
+          hit.targetId,
+          `命中的目标ID应一致`
+        );
+      }
+    });
+
+    it('sweep_test 场景的初始参数不应命中（墙挡住）', () => {
+      const sweepScene = getSampleScenes().find(s => s.name === 'sweep_test');
+      assert.ok(sweepScene !== undefined);
+
+      const result = simulate(sweepScene.scene);
+      const firstCollision = result.firstCollision;
+
+      if (firstCollision) {
+        const hitWall = firstCollision.obstacleId === 'wall1';
+        const hitTargetTooSoon = result.hit && (firstCollision.obstacleId === 'target');
+        assert.ok(
+          hitWall || hitTargetTooSoon,
+          `初始参数要么撞墙，要么直接命中（取决于场景设计），实际碰撞了: ${firstCollision.obstacleId}`
+        );
+      }
+    });
+  });
+
+  describe('13. CLI 输出摘要功能验证', () => {
+    it('JSON 摘要输出应包含关键字段但不包含完整轨迹', () => {
+      const scene: Scene = {
+        launch: { position: { x: 0, y: 0 }, angleDegrees: 45, initialSpeed: 20 },
+        wind: { speed: 0, directionDegrees: 0 },
+        gravity: 9.81,
+        timeStep: 0.01,
+        maxSimulationTime: 5,
+        integrator: 'semi-implicit-euler',
+        obstacles: [{ id: 'target', type: 'circle', x: 40, y: 0, radius: 2 }],
+        groundY: 0,
+      };
+
+      const result = simulate(scene);
+
+      type SummaryType = {
+        hit: boolean;
+        hitTargetId?: string;
+        totalTime: number;
+        trajectoryPoints: number;
+        terminationReason: string;
+        firstCollision?: unknown;
+        finalPosition: unknown;
+        finalVelocity: unknown;
+      };
+
+      const summary: SummaryType = {
+        hit: result.hit,
+        hitTargetId: result.hitTargetId,
+        totalTime: result.totalTime,
+        trajectoryPoints: result.trajectory.length,
+        terminationReason: result.terminationReason,
+        firstCollision: result.firstCollision,
+        finalPosition: result.finalPosition,
+        finalVelocity: result.finalVelocity,
+      };
+
+      assert.ok('hit' in summary);
+      assert.ok('totalTime' in summary);
+      assert.ok('trajectoryPoints' in summary);
+      assert.ok('terminationReason' in summary);
+      assert.ok('finalPosition' in summary);
+      assert.ok(!('trajectory' in summary), '摘要不应包含完整 trajectory 数组');
+
+      assert.equal(summary.hit, result.hit);
+      assert.equal(summary.totalTime, result.totalTime);
+      assert.equal(summary.trajectoryPoints, result.trajectory.length);
+      assert.equal(summary.terminationReason, result.terminationReason);
+      assert.ok(summary.trajectoryPoints > 100, '应有足够多的采样点');
+    });
+
+    it('完整结果和摘要结果应数据一致', () => {
+      const scene: Scene = {
+        launch: { position: { x: 0, y: 1 }, angleDegrees: 60, initialSpeed: 25 },
+        wind: { speed: 1, directionDegrees: 90 },
+        gravity: 9.81,
+        timeStep: 0.01,
+        maxSimulationTime: 8,
+        integrator: 'rk2',
+        obstacles: [
+          { id: 'wall', type: 'rect', x: 20, y: 0, width: 2, height: 15, onCollision: 'bounce', restitution: 0.6 },
+          { id: 'target', type: 'circle', x: 50, y: 10, radius: 2 },
+        ],
+        groundY: 0,
+      };
+
+      const full = simulate(scene);
+
+      assert.equal(full.trajectory[full.trajectory.length - 1]!.time, full.totalTime);
+      assert.deepEqual(
+        full.trajectory[full.trajectory.length - 1]!.position,
+        full.finalPosition
+      );
+
+      if (full.firstCollision) {
+        const { remainingSpeed, velocity } = full.firstCollision;
+        const calcSpeed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+        assert.ok(
+          approxEqual(remainingSpeed, calcSpeed, 0.0001),
+          `remainingSpeed 应与速度向量一致: 记录 ${remainingSpeed}, 计算 ${calcSpeed}`
+        );
+      }
+    });
+  });
 });
+
+function simulateWithOverrideScene(scene: Scene, angleDegrees: number, initialSpeed: number) {
+  return simulate({
+    ...scene,
+    launch: { ...scene.launch, angleDegrees, initialSpeed },
+  });
+}

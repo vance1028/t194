@@ -19,17 +19,17 @@
     {
       "id": "wall1",
       "type": "rect",
-      "x": 15,
+      "x": 12,
       "y": 0,
       "width": 1,
-      "height": 8,
+      "height": 4,
       "onCollision": "stop"
     },
     {
       "id": "target",
       "type": "circle",
-      "x": 35,
-      "y": 10,
+      "x": 25,
+      "y": 6,
       "radius": 2,
       "onCollision": "stop"
     }

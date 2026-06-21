@@ -10,8 +10,18 @@ import type {
 } from './types.js';
 import { checkObstacleOverlap } from './collision.js';
 
+const UTF8_BOM = '\uFEFF';
+
+function stripBom(content: string): string {
+  if (content.startsWith(UTF8_BOM)) {
+    return content.slice(1);
+  }
+  return content;
+}
+
 export function parseSceneFromFile(filePath: string): Scene {
-  const content = fs.readFileSync(filePath, 'utf-8');
+  let content = fs.readFileSync(filePath, 'utf-8');
+  content = stripBom(content);
   const raw = JSON.parse(content);
   return parseScene(raw);
 }

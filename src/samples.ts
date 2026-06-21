@@ -202,7 +202,7 @@ export function getSampleScenes(): SampleScene[] {
     },
     {
       name: 'sweep_test',
-      description: '用于 sweep 搜索的场景',
+      description: '用于 sweep 搜索的场景 - 存在矮墙遮挡，需要找到能越过高墙命中目标的参数',
       filename: '06-sweep-test.json',
       scene: {
         launch: {
@@ -222,17 +222,17 @@ export function getSampleScenes(): SampleScene[] {
           {
             id: 'wall1',
             type: 'rect',
-            x: 15,
+            x: 12,
             y: 0,
             width: 1,
-            height: 8,
+            height: 4,
             onCollision: 'stop',
           },
           {
             id: 'target',
             type: 'circle',
-            x: 35,
-            y: 10,
+            x: 25,
+            y: 6,
             radius: 2,
             onCollision: 'stop',
           },
