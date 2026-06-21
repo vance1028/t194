@@ -1,0 +1,29 @@
+{
+  "launch": {
+    "position": {
+      "x": 0,
+      "y": 0
+    },
+    "angleDegrees": 45,
+    "initialSpeed": 20
+  },
+  "wind": {
+    "speed": 0,
+    "directionDegrees": 0
+  },
+  "gravity": 9.81,
+  "timeStep": 0.01,
+  "maxSimulationTime": 10,
+  "integrator": "semi-implicit-euler",
+  "obstacles": [
+    {
+      "id": "target",
+      "type": "circle",
+      "x": 40,
+      "y": 0,
+      "radius": 2,
+      "onCollision": "stop"
+    }
+  ],
+  "groundY": 0
+}

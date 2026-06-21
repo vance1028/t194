@@ -1,0 +1,25 @@
+{
+  "name": "physics-simulator",
+  "version": "1.0.0",
+  "description": "离线物理模拟器 - 计算投射物在重力和风力下的轨迹及碰撞",
+  "type": "module",
+  "bin": {
+    "physim": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/tests/**/*.test.js",
+    "test:all": "npm run build && npm run test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}

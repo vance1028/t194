@@ -1,0 +1,37 @@
+{
+  "launch": {
+    "position": {
+      "x": 0,
+      "y": 5
+    },
+    "angleDegrees": 0,
+    "initialSpeed": 500
+  },
+  "wind": {
+    "speed": 0,
+    "directionDegrees": 0
+  },
+  "gravity": 9.81,
+  "timeStep": 0.01,
+  "maxSimulationTime": 2,
+  "integrator": "semi-implicit-euler",
+  "obstacles": [
+    {
+      "id": "thin_wall",
+      "type": "rect",
+      "x": 10,
+      "y": 4,
+      "width": 0.1,
+      "height": 2,
+      "onCollision": "stop"
+    },
+    {
+      "id": "target",
+      "type": "circle",
+      "x": 20,
+      "y": 5,
+      "radius": 1,
+      "onCollision": "stop"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "launch": {
+    "position": {
+      "x": 0,
+      "y": 2
+    },
+    "angleDegrees": 45,
+    "initialSpeed": 35
+  },
+  "wind": {
+    "speed": -1,
+    "directionDegrees": 0
+  },
+  "gravity": 9.81,
+  "timeStep": 0.01,
+  "maxSimulationTime": 15,
+  "integrator": "rk2",
+  "obstacles": [
+    {
+      "id": "platform",
+      "type": "rect",
+      "x": 20,
+      "y": 0,
+      "width": 10,
+      "height": 5,
+      "onCollision": "bounce",
+      "restitution": 0.5
+    },
+    {
+      "id": "target_low",
+      "type": "circle",
+      "x": 45,
+      "y": 5,
+      "radius": 2,
+      "onCollision": "stop"
+    },
+    {
+      "id": "target_high",
+      "type": "circle",
+      "x": 60,
+      "y": 20,
+      "radius": 3,
+      "onCollision": "stop"
+    }
+  ],
+  "groundY": 0
+}
